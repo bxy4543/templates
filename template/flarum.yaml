@@ -77,6 +77,13 @@ spec:
       containers:
         - name: ${{ defaults.app_name }}
           image: crazymax/flarum:1.8.0
+          args:
+            - (curl -m 5 -o /dev/null -s https://repo.packagist.org/packages.json || composer
+              config repo.packagist composer https://mirrors.aliyun.com/composer/) &&
+              /init
+          command:
+            - /bin/sh
+            - -c
           env:
             - name: FLARUM_PORT
               valueFrom:
@@ -116,8 +123,6 @@ spec:
             limits:
               cpu: 1000m
               memory: 1024Mi
-          command: []
-          args: []
           ports:
             - containerPort: 8000
           imagePullPolicy: Always
