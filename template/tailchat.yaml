@@ -1,16 +1,21 @@
-apiVersion: template.app.sealos.io/v1beta1
+apiVersion: app.sealos.io/v1
 kind: Template
 metadata:
   name: tailchat
 spec:
   title: 'Tailchat'
   url: 'https://tailchat.msgbyte.com/'
-  github: 'https://github.com/msgbyte/tailchat'
-  author: 'sealos'
-  description: 'The next-generation noIM Application in your own workspace'
+  gitRepo: 'https://github.com/msgbyte/tailchat'
+  author: 'Sealos'
+  description: 'Next generation noIM application in your own workspace.'
   readme: 'https://raw.githubusercontent.com/msgbyte/tailchat/master/README.md'
-  icon: 'https://avatars.githubusercontent.com/u/86033898?s=96&v=4'
-  template_type: inline
+  icon: 'https://raw.githubusercontent.com/msgbyte/tailchat/master/website/static/img/logo.svg'
+  templateType: inline
+  locale: en
+  i18n:
+    zh:
+      description: '在您自己工作区中的下一代 noIM 应用程序'
+      readme: 'https://raw.githubusercontent.com/msgbyte/tailchat/master/README.zh.md'
   defaults:
     app_host:
       # number or string.
@@ -29,18 +34,40 @@ spec:
       value: tailchat-${{ random(8) }}
   inputs:
 ---
+
+apiVersion: v1
+kind: ServiceAccount
+metadata:
+  labels:
+    sealos-db-provider-cr: ${{ defaults.app_name }}-mongodb
+    app.kubernetes.io/instance: ${{ defaults.app_name }}-mongodb
+    app.kubernetes.io/managed-by: kbcli
+  name: ${{ defaults.app_name }}-mongodb
+
+---
+
+apiVersion: v1
+kind: ServiceAccount
+metadata:
+  labels:
+    sealos-db-provider-cr: ${{ defaults.app_name }}-redis
+    app.kubernetes.io/instance: ${{ defaults.app_name }}-redis
+    app.kubernetes.io/managed-by: kbcli
+  name: ${{ defaults.app_name }}-redis
+
+---
+
 apiVersion: apps/v1
 kind: Deployment
 metadata:
   name: ${{ defaults.app_name }}
   annotations:
-    originImageName: moonrailgun/tailchat
+    originImageName: moonrailgun/tailchat:1.11.5
     deploy.cloud.sealos.io/minReplicas: '1'
     deploy.cloud.sealos.io/maxReplicas: '1'
   labels:
     cloud.sealos.io/app-deploy-manager: ${{ defaults.app_name }}
     app: ${{ defaults.app_name }}
-    cloud.sealos.io/deploy-on-sealos: ${{ defaults.app_name }}
 spec:
   replicas: 1
   revisionHistoryLimit: 1
@@ -52,9 +79,10 @@ spec:
       labels:
         app: ${{ defaults.app_name }}
     spec:
+      automountServiceAccountToken: false
       containers:
         - name: ${{ defaults.app_name }}
-          image: moonrailgun/tailchat
+          image: moonrailgun/tailchat:1.11.5
           env:
             - name: MONGO_PASSWORD
               valueFrom:
@@ -65,8 +93,23 @@ spec:
               value: services,plugins
             - name: TRANSPORTER
               value: redis://${{ defaults.app_name }}-redis-redis.${{ SEALOS_NAMESPACE }}.svc
+            - name: REDIS_ENDPOINT
+              valueFrom:
+                secretKeyRef:
+                  name: ${{ defaults.app_name }}-redis-conn-credential
+                  key: endpoint
+            - name: REDIS_USERNAME
+              valueFrom:
+                secretKeyRef:
+                  name: ${{ defaults.app_name }}-redis-conn-credential
+                  key: username
+            - name: REDIS_PASSWORD
+              valueFrom:
+                secretKeyRef:
+                  name: ${{ defaults.app_name }}-redis-conn-credential
+                  key: password
             - name: REDIS_URL
-              value: redis://${{ defaults.app_name }}-redis-redis.${{ SEALOS_NAMESPACE }}.svc
+              value: redis://$(REDIS_USERNAME):$(REDIS_PASSWORD)@$(REDIS_ENDPOINT)
             - name: MONGO_URL
               value: mongodb://root:$(MONGO_PASSWORD)@${{ defaults.app_name }}-mongodb-mongodb.${{ SEALOS_NAMESPACE }}.svc:27017
             - name: MINIO_URL
@@ -86,7 +129,7 @@ spec:
           args: []
           ports:
             - containerPort: 11000
-          imagePullPolicy: Always
+          imagePullPolicy: IfNotPresent
           volumeMounts: []
       volumes: []
 
@@ -97,7 +140,6 @@ metadata:
   name: ${{ defaults.app_name }}
   labels:
     cloud.sealos.io/app-deploy-manager: ${{ defaults.app_name }}
-    cloud.sealos.io/deploy-on-sealos: ${{ defaults.app_name }}
 spec:
   ports:
     - port: 11000
@@ -112,7 +154,6 @@ metadata:
   labels:
     cloud.sealos.io/app-deploy-manager: ${{ defaults.app_name }}
     cloud.sealos.io/app-deploy-manager-domain: ${{ defaults.app_host }}
-    cloud.sealos.io/deploy-on-sealos: ${{ defaults.app_name }}
   annotations:
     kubernetes.io/ingress.class: nginx
     nginx.ingress.kubernetes.io/proxy-body-size: 32m
@@ -154,9 +195,8 @@ metadata:
     - cluster.kubeblocks.io/finalizer
   labels:
     clusterdefinition.kubeblocks.io/name: mongodb
-    clusterversion.kubeblocks.io/name: mongodb-5.0.14
+    clusterversion.kubeblocks.io/name: mongodb-5.0
     sealos-db-provider-cr: ${{ defaults.app_name }}-mongodb
-    cloud.sealos.io/deploy-on-sealos: ${{ defaults.app_name }}
   annotations: {}
   name: ${{ defaults.app_name }}-mongodb
   generation: 1
@@ -167,7 +207,7 @@ spec:
     tenancy: SharedNode
     topologyKeys: []
   clusterDefinitionRef: mongodb
-  clusterVersionRef: mongodb-5.0.14
+  clusterVersionRef: mongodb-5.0
   componentSpecs:
     - componentDefRef: mongodb
       monitor: true
@@ -175,11 +215,11 @@ spec:
       replicas: 1
       resources:
         limits:
-          cpu: 1000m
-          memory: 1024Mi
+          cpu: 500m
+          memory: 512Mi
         requests:
-          cpu: 100m
-          memory: 102Mi
+          cpu: 50m
+          memory: 51Mi
       serviceAccountName: ${{ defaults.app_name }}-mongodb
       volumeClaimTemplates:
         - name: data
@@ -188,22 +228,12 @@ spec:
               - ReadWriteOnce
             resources:
               requests:
-                storage: 3Gi
-            storageClassName: openebs-backup
+                storage: 1Gi
+
   terminationPolicy: Delete
   tolerations: []
 ---
-apiVersion: v1
-kind: ServiceAccount
-metadata:
-  labels:
-    sealos-db-provider-cr: ${{ defaults.app_name }}-mongodb
-    app.kubernetes.io/instance: ${{ defaults.app_name }}-mongodb
-    app.kubernetes.io/managed-by: kbcli
-    cloud.sealos.io/deploy-on-sealos: ${{ defaults.app_name }}
-  name: ${{ defaults.app_name }}-mongodb
 
----
 apiVersion: rbac.authorization.k8s.io/v1
 kind: Role
 metadata:
@@ -211,15 +241,14 @@ metadata:
     sealos-db-provider-cr: ${{ defaults.app_name }}-mongodb
     app.kubernetes.io/instance: ${{ defaults.app_name }}-mongodb
     app.kubernetes.io/managed-by: kbcli
-    cloud.sealos.io/deploy-on-sealos: ${{ defaults.app_name }}
   name: ${{ defaults.app_name }}-mongodb
 rules:
   - apiGroups:
-      - ''
+      - '*'
     resources:
-      - events
+      - '*'
     verbs:
-      - create
+      - '*'
 
 ---
 apiVersion: rbac.authorization.k8s.io/v1
@@ -229,7 +258,6 @@ metadata:
     sealos-db-provider-cr: ${{ defaults.app_name }}-mongodb
     app.kubernetes.io/instance: ${{ defaults.app_name }}-mongodb
     app.kubernetes.io/managed-by: kbcli
-    cloud.sealos.io/deploy-on-sealos: ${{ defaults.app_name }}
   name: ${{ defaults.app_name }}-mongodb
 roleRef:
   apiGroup: rbac.authorization.k8s.io
@@ -238,7 +266,6 @@ roleRef:
 subjects:
   - kind: ServiceAccount
     name: ${{ defaults.app_name }}-mongodb
-    namespace: ${{ SEALOS_NAMESPACE }}
 
 ---
 apiVersion: apps/v1
@@ -252,7 +279,6 @@ metadata:
   labels:
     cloud.sealos.io/app-deploy-manager: ${{ defaults.app_name }}-minio
     app: ${{ defaults.app_name }}-minio
-    cloud.sealos.io/deploy-on-sealos: ${{ defaults.app_name }}
 spec:
   replicas: 1
   revisionHistoryLimit: 1
@@ -265,7 +291,6 @@ spec:
     metadata:
       labels:
         app: ${{ defaults.app_name }}-minio
-        cloud.sealos.io/deploy-on-sealos: ${{ defaults.app_name }}
     spec:
       terminationGracePeriodSeconds: 10
       containers:
@@ -290,7 +315,7 @@ spec:
             - /data
           ports:
             - containerPort: 9000
-          imagePullPolicy: Always
+          imagePullPolicy: IfNotPresent
           volumeMounts:
             - name: vn-data
               mountPath: /data
@@ -315,7 +340,6 @@ metadata:
   name: ${{ defaults.app_name }}-minio
   labels:
     cloud.sealos.io/app-deploy-manager: ${{ defaults.app_name }}-minio
-    cloud.sealos.io/deploy-on-sealos: ${{ defaults.app_name }}
 spec:
   ports:
     - port: 9000
@@ -332,7 +356,6 @@ metadata:
     clusterdefinition.kubeblocks.io/name: redis
     clusterversion.kubeblocks.io/name: redis-7.0.6
     sealos-db-provider-cr: ${{ defaults.app_name }}-redis
-    cloud.sealos.io/deploy-on-sealos: ${{ defaults.app_name }}
   annotations: {}
   name: ${{ defaults.app_name }}-redis
 spec:
@@ -366,7 +389,7 @@ spec:
             resources:
               requests:
                 storage: 3Gi
-            storageClassName: openebs-backup
+
     - componentDefRef: redis-sentinel
       monitor: true
       name: redis-sentinel
@@ -383,17 +406,7 @@ spec:
   tolerations: []
 
 ---
-apiVersion: v1
-kind: ServiceAccount
-metadata:
-  labels:
-    sealos-db-provider-cr: ${{ defaults.app_name }}-redis
-    app.kubernetes.io/instance: ${{ defaults.app_name }}-redis
-    app.kubernetes.io/managed-by: kbcli
-    cloud.sealos.io/deploy-on-sealos: ${{ defaults.app_name }}
-  name: ${{ defaults.app_name }}-redis
 
----
 apiVersion: rbac.authorization.k8s.io/v1
 kind: Role
 metadata:
@@ -401,15 +414,14 @@ metadata:
     sealos-db-provider-cr: ${{ defaults.app_name }}-redis
     app.kubernetes.io/instance: ${{ defaults.app_name }}-redis
     app.kubernetes.io/managed-by: kbcli
-    cloud.sealos.io/deploy-on-sealos: ${{ defaults.app_name }}
   name: ${{ defaults.app_name }}-redis
 rules:
   - apiGroups:
-      - ''
+      - '*'
     resources:
-      - events
+      - '*'
     verbs:
-      - create
+      - '*'
 
 ---
 apiVersion: rbac.authorization.k8s.io/v1
@@ -419,7 +431,6 @@ metadata:
     sealos-db-provider-cr: ${{ defaults.app_name }}-redis
     app.kubernetes.io/instance: ${{ defaults.app_name }}-redis
     app.kubernetes.io/managed-by: kbcli
-    cloud.sealos.io/deploy-on-sealos: ${{ defaults.app_name }}
   name: ${{ defaults.app_name }}-redis
 roleRef:
   apiGroup: rbac.authorization.k8s.io
@@ -428,4 +439,3 @@ roleRef:
 subjects:
   - kind: ServiceAccount
     name: ${{ defaults.app_name }}-redis
-    namespace: ${{ SEALOS_NAMESPACE }}

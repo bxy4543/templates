@@ -1,16 +1,16 @@
-apiVersion: template.app.sealos.io/v1beta1
+apiVersion: app.sealos.io/v1
 kind: Template
 metadata:
   name: ${{ defaults.app_name }}
 spec:
   title:
   url:                              #Your app's official website
-  github:                           #Your app's github url
+  gitRepo:                          #Your app's github url
   author:                           #Your name
   description:                      #Descrip your app
   readme:                           #Your app's readme.md url
   icon:                             #Your app's icon url
-  template_type: inline
+  templateType: inline
   defaults:
     app_host:
       type: string
@@ -35,7 +35,6 @@ metadata:
     deploy.cloud.sealos.io/maxReplicas: '1'
   labels:
     cloud.sealos.io/app-deploy-manager: ${{ defaults.app_name }}
-    cloud.sealos.io/deploy-on-sealos: ${{ defaults.app_name }}
     app: ${{ defaults.app_name }}
 spec:
   replicas: 1
@@ -66,7 +65,7 @@ spec:
           args: []
           ports:
             - containerPort: 80
-          imagePullPolicy: Always
+          imagePullPolicy: IfNotPresent
           volumeMounts:
             - name: vn-appvn-data
               mountPath: /app/data
@@ -91,7 +90,6 @@ metadata:
   name: ${{ defaults.app_name }}
   labels:
     cloud.sealos.io/app-deploy-manager: ${{ defaults.app_name }}
-    cloud.sealos.io/deploy-on-sealos: ${{ defaults.app_name }}
 spec:
   ports:
     - port: 80
@@ -137,4 +135,4 @@ spec:
   tls:
     - hosts:
         - ${{ defaults.app_host }}.${{ SEALOS_CLOUD_DOMAIN }}
-      secretName: ${{ SEALOS_Cert_Secret_Name }}
+      secretName: ${{ SEALOS_CERT_SECRET_NAME }}

@@ -1,16 +1,19 @@
-apiVersion: template.app.sealos.io/v1beta1
+apiVersion: app.sealos.io/v1
 kind: Template
 metadata:
   name: uptime-kuma
 spec:
   title: 'UptimeKuma'
   url: 'https://uptime.kuma.pet/'
-  github: 'https://github.com/louislam/uptime-kuma'
-  author: 'sealos'
+  gitRepo: 'https://github.com/louislam/uptime-kuma'
+  author: 'Sealos'
   description: 'Uptime Kuma is an easy-to-use self-hosted monitoring tool.'
   readme: 'https://raw.githubusercontent.com/louislam/uptime-kuma/master/README.md'
-  icon: 'https://avatars.githubusercontent.com/u/1336778?s=96&v=4'
-  template_type: inline
+  icon: 'https://raw.githubusercontent.com/louislam/uptime-kuma/master/public/icon.svg'
+  templateType: inline
+  categories:
+    - monitor
+    - tool
   defaults:
     app_host:
       # number or string.
@@ -27,13 +30,12 @@ kind: StatefulSet
 metadata:
   name: ${{ defaults.app_name }}
   annotations:
-    originImageName: louislam/uptime-kuma:1
+    originImageName: louislam/uptime-kuma:1.23.13
     deploy.cloud.sealos.io/minReplicas: '1'
     deploy.cloud.sealos.io/maxReplicas: '1'
   labels:
     cloud.sealos.io/app-deploy-manager: ${{ defaults.app_name }}
     app: ${{ defaults.app_name }}
-    cloud.sealos.io/deploy-on-sealos: ${{ defaults.app_name }}
 spec:
   replicas: 1
   revisionHistoryLimit: 1
@@ -48,9 +50,10 @@ spec:
         app: ${{ defaults.app_name }}
     spec:
       terminationGracePeriodSeconds: 10
+      automountServiceAccountToken: false
       containers:
         - name: ${{ defaults.app_name }}
-          image: louislam/uptime-kuma:1
+          image: louislam/uptime-kuma:1.23.13
           env: []
           resources:
             requests:
@@ -63,7 +66,7 @@ spec:
           args: []
           ports:
             - containerPort: 3001
-          imagePullPolicy: Always
+          imagePullPolicy: IfNotPresent
           volumeMounts:
             - name: vn-appvn-data
               mountPath: /app/data
@@ -88,7 +91,6 @@ metadata:
   name: ${{ defaults.app_name }}
   labels:
     cloud.sealos.io/app-deploy-manager: ${{ defaults.app_name }}
-    cloud.sealos.io/deploy-on-sealos: ${{ defaults.app_name }}
 spec:
   ports:
     - port: 3001
@@ -103,7 +105,6 @@ metadata:
   labels:
     cloud.sealos.io/app-deploy-manager: ${{ defaults.app_name }}
     cloud.sealos.io/app-deploy-manager-domain: ${{ defaults.app_host }}
-    cloud.sealos.io/deploy-on-sealos: ${{ defaults.app_name }}
   annotations:
     kubernetes.io/ingress.class: nginx
     nginx.ingress.kubernetes.io/proxy-body-size: 32m

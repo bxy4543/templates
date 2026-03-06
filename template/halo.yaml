@@ -1,16 +1,19 @@
-apiVersion: template.app.sealos.io/v1beta1
+apiVersion: app.sealos.io/v1
 kind: Template
 metadata:
   name: halo
 spec:
   title: 'Halo'
   url: 'https://halo.run/'
-  github: 'https://github.com/halo-dev/halo'
-  author: 'sealos'
-  description: 'Powerful and easy-to-use open source website building tool'
+  gitRepo: 'https://github.com/halo-dev/halo'
+  author: 'Sealos'
+  description: '强大易用的开源建站工具。'
   readme: 'https://raw.githubusercontent.com/halo-dev/halo/main/README.md'
-  icon: 'https://avatars.githubusercontent.com/u/48195280?s=96&v=4'
-  template_type: inline
+  icon: 'https://www.halo.run/logo'
+  templateType: inline
+  locale: zh
+  categories:
+    - blog
   defaults:
     app_host:
       # number or string.
@@ -19,31 +22,31 @@ spec:
     app_name:
       type: string
       value: halo-${{ random(8) }}
-  inputs:
-    admin_username:
-      description: 'Halo Super Admin Username'
-      type: string
-      default: 'admin'
-      required: false
-    admin_password:
-      description: 'Halo Super Admin Password'
-      type: string
-      default: 'admin'
-      required: false
 
 ---
+
+apiVersion: v1
+kind: ServiceAccount
+metadata:
+  labels:
+    sealos-db-provider-cr: ${{ defaults.app_name }}-pg
+    app.kubernetes.io/instance: ${{ defaults.app_name }}-pg
+    app.kubernetes.io/managed-by: kbcli
+  name: ${{ defaults.app_name }}-pg
+
+---
+
 apiVersion: apps/v1
 kind: StatefulSet
 metadata:
   name: ${{ defaults.app_name }}
   annotations:
-    originImageName: halohub/halo:2.5
+    originImageName: halohub/halo:2.18.0
     deploy.cloud.sealos.io/minReplicas: '1'
     deploy.cloud.sealos.io/maxReplicas: '1'
   labels:
     cloud.sealos.io/app-deploy-manager: ${{ defaults.app_name }}
     app: ${{ defaults.app_name }}
-    cloud.sealos.io/deploy-on-sealos: ${{ defaults.app_name }}
 spec:
   replicas: 1
   revisionHistoryLimit: 1
@@ -58,30 +61,21 @@ spec:
         app: ${{ defaults.app_name }}
     spec:
       terminationGracePeriodSeconds: 10
+      automountServiceAccountToken: false
       containers:
         - name: ${{ defaults.app_name }}
-          image: halohub/halo:2.5
+          image: halohub/halo:2.18.0
           env:
             - name: PG_PASSWORD
               valueFrom:
                 secretKeyRef:
                   name: ${{ defaults.app_name }}-pg-conn-credential
                   key: password
-            - name: spring.sql.init.platform
-              value: postgresql
-            - name: spring.r2dbc.url
-              value: >-
-                r2dbc:pool:postgresql://${{ defaults.app_name }}-pg-postgresql.${{ SEALOS_NAMESPACE }}.svc:5432/halo
-            - name: spring.r2dbc.username
-              value: root
-            - name: spring.r2dbc.password
-              value: $PG_PASSWORD
-            - name: halo.external-url
-              value: ${{ defaults.app_host }}.${{ SEALOS_CLOUD_DOMAIN }}
-            - name: halo.security.initializer.superadminusername
-              value: ${{ inputs.admin_username }}
-            - name: halo.security.initializer.superadminpassword
-              value: ${{ inputs.admin_password }}
+            - name: PG_USERNAME
+              valueFrom:
+                secretKeyRef:
+                  name: ${{ defaults.app_name }}-pg-conn-credential
+                  key: username
           resources:
             requests:
               cpu: 100m
@@ -90,13 +84,25 @@ spec:
               cpu: 1000m
               memory: 1024Mi
           command: []
-          args: []
+          args:
+            - --spring.r2dbc.url=r2dbc:pool:postgresql://${{ defaults.app_name }}-pg-postgresql.${{ SEALOS_NAMESPACE }}.svc:5432/halo
+            - --spring.r2dbc.username=$(PG_USERNAME)
+            - --spring.r2dbc.password=$(PG_PASSWORD)
+            - --spring.sql.init.platform=postgresql
+            - --halo.external-url=https://${{ defaults.app_host }}.${{ SEALOS_CLOUD_DOMAIN }}
           ports:
             - containerPort: 8090
-          imagePullPolicy: Always
+          imagePullPolicy: IfNotPresent
           volumeMounts:
             - name: vn-rootvn-vn-halo2
               mountPath: /root/.halo2
+          livenessProbe:
+            httpGet:
+              path: /actuator/health/readiness
+              port: 8090
+            initialDelaySeconds: 30
+            timeoutSeconds: 5
+            periodSeconds: 15
       volumes: []
   volumeClaimTemplates:
     - metadata:
@@ -118,7 +124,6 @@ metadata:
   name: ${{ defaults.app_name }}
   labels:
     cloud.sealos.io/app-deploy-manager: ${{ defaults.app_name }}
-    cloud.sealos.io/deploy-on-sealos: ${{ defaults.app_name }}
 spec:
   ports:
     - port: 8090
@@ -133,7 +138,6 @@ metadata:
   labels:
     cloud.sealos.io/app-deploy-manager: ${{ defaults.app_name }}
     cloud.sealos.io/app-deploy-manager-domain: ${{ defaults.app_host }}
-    cloud.sealos.io/deploy-on-sealos: ${{ defaults.app_name }}
   annotations:
     kubernetes.io/ingress.class: nginx
     nginx.ingress.kubernetes.io/proxy-body-size: 32m
@@ -177,7 +181,6 @@ metadata:
     clusterdefinition.kubeblocks.io/name: postgresql
     clusterversion.kubeblocks.io/name: postgresql-14.8.0
     sealos-db-provider-cr: ${{ defaults.app_name }}-pg
-    cloud.sealos.io/deploy-on-sealos: ${{ defaults.app_name }}
   annotations: {}
   name: ${{ defaults.app_name }}-pg
 spec:
@@ -195,11 +198,11 @@ spec:
       replicas: 1
       resources:
         limits:
-          cpu: 1000m
-          memory: 1024Mi
+          cpu: 500m
+          memory: 512Mi
         requests:
-          cpu: 100m
-          memory: 102Mi
+          cpu: 50m
+          memory: 51Mi
       serviceAccountName: ${{ defaults.app_name }}-pg
       switchPolicy:
         type: Noop
@@ -210,22 +213,12 @@ spec:
               - ReadWriteOnce
             resources:
               requests:
-                storage: 3Gi
-            storageClassName: openebs-backup
+                storage: 1Gi
+
   terminationPolicy: Delete
   tolerations: []
 ---
-apiVersion: v1
-kind: ServiceAccount
-metadata:
-  labels:
-    sealos-db-provider-cr: ${{ defaults.app_name }}-pg
-    app.kubernetes.io/instance: ${{ defaults.app_name }}-pg
-    app.kubernetes.io/managed-by: kbcli
-    cloud.sealos.io/deploy-on-sealos: ${{ defaults.app_name }}
-  name: ${{ defaults.app_name }}-pg
 
----
 apiVersion: rbac.authorization.k8s.io/v1
 kind: Role
 metadata:
@@ -233,49 +226,14 @@ metadata:
     sealos-db-provider-cr: ${{ defaults.app_name }}-pg
     app.kubernetes.io/instance: ${{ defaults.app_name }}-pg
     app.kubernetes.io/managed-by: kbcli
-    cloud.sealos.io/deploy-on-sealos: ${{ defaults.app_name }}
   name: ${{ defaults.app_name }}-pg
 rules:
   - apiGroups:
-      - ''
+      - '*'
     resources:
-      - events
+      - '*'
     verbs:
-      - create
-  - apiGroups:
-      - ''
-    resources:
-      - configmaps
-    verbs:
-      - create
-      - get
-      - list
-      - patch
-      - update
-      - watch
-      - delete
-  - apiGroups:
-      - ''
-    resources:
-      - endpoints
-    verbs:
-      - create
-      - get
-      - list
-      - patch
-      - update
-      - watch
-      - delete
-  - apiGroups:
-      - ''
-    resources:
-      - pods
-    verbs:
-      - get
-      - list
-      - patch
-      - update
-      - watch
+      - '*'
 
 ---
 apiVersion: rbac.authorization.k8s.io/v1
@@ -285,7 +243,6 @@ metadata:
     sealos-db-provider-cr: ${{ defaults.app_name }}-pg
     app.kubernetes.io/instance: ${{ defaults.app_name }}-pg
     app.kubernetes.io/managed-by: kbcli
-    cloud.sealos.io/deploy-on-sealos: ${{ defaults.app_name }}
   name: ${{ defaults.app_name }}-pg
 roleRef:
   apiGroup: rbac.authorization.k8s.io
@@ -294,4 +251,50 @@ roleRef:
 subjects:
   - kind: ServiceAccount
     name: ${{ defaults.app_name }}-pg
-    namespace: ${{ SEALOS_NAMESPACE }}
+
+---
+
+apiVersion: batch/v1
+kind: Job
+metadata:
+  name: ${{ defaults.app_name }}-pg-init
+spec:
+  completions: 1
+  template:
+    spec:
+      containers:
+        - name: pgsql-init
+          image: senzing/postgresql-client:2.2.4
+          env:
+            - name: PG_USERNAME
+              valueFrom:
+                secretKeyRef:
+                  name: ${{ defaults.app_name }}-pg-conn-credential
+                  key: username
+            - name: PG_PASSWORD
+              valueFrom:
+                secretKeyRef:
+                  name: ${{ defaults.app_name }}-pg-conn-credential
+                  key: password
+            - name: PG_PORT
+              valueFrom:
+                secretKeyRef:
+                  name: ${{ defaults.app_name }}-pg-conn-credential
+                  key: port
+            - name: DATABASE_URL
+              value: postgresql://$(PG_USERNAME):$(PG_PASSWORD)@${{ defaults.app_name }}-pg-postgresql.${{ SEALOS_NAMESPACE }}.svc:$(PG_PORT)
+          command:
+            - /bin/sh
+            - -c
+            - |
+              until psql ${DATABASE_URL} -c 'CREATE DATABASE halo;' &>/dev/null; do sleep 1; done
+          resources:
+            limits:
+              cpu: 500m
+              memory: 512Mi
+            requests:
+              cpu: 50m
+              memory: 51Mi
+      restartPolicy: Never
+  backoffLimit: 0
+  ttlSecondsAfterFinished: 300

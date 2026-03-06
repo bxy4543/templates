@@ -1,16 +1,16 @@
-apiVersion: template.app.sealos.io/v1beta1
+apiVersion: app.sealos.io/v1
 kind: Template
 metadata:
   name: nsfw
 spec:
   title: 'nsfw'
   url: 'https://github.com/labring/nsfw'
-  github: 'https://github.com/labring/nsfw'
-  author: 'sealos'
+  gitRepo: 'https://github.com/labring/nsfw'
+  author: 'Sealos'
   description: 'NSFW is a project for image pornography recognition'
   readme: 'https://raw.githubusercontent.com/labring/nsfw/master/README.md'
   icon: 'https://avatars.githubusercontent.com/u/102226726?s=96&v=4'
-  template_type: inline
+  templateType: inline
   defaults:
     app_host:
       # number or string..
@@ -37,7 +37,6 @@ metadata:
   labels:
     cloud.sealos.io/app-deploy-manager: ${{ defaults.app_name }}
     app: ${{ defaults.app_name }}
-    cloud.sealos.io/deploy-on-sealos: ${{ defaults.app_name }}
 spec:
   replicas: 1
   revisionHistoryLimit: 1
@@ -54,6 +53,7 @@ spec:
       labels:
         app: ${{ defaults.app_name }}
     spec:
+      automountServiceAccountToken: false
       containers:
         - name: ${{ defaults.app_name }}
           image: ethandai4869/nsfw-auth
@@ -81,7 +81,6 @@ metadata:
   name: ${{ defaults.app_name }}
   labels:
     cloud.sealos.io/app-deploy-manager: ${{ defaults.app_name }}
-    cloud.sealos.io/deploy-on-sealos: ${{ defaults.app_name }}
 spec:
   ports:
     - port: 5000
@@ -95,7 +94,6 @@ metadata:
   labels:
     cloud.sealos.io/app-deploy-manager: ${{ defaults.app_name }}
     cloud.sealos.io/app-deploy-manager-domain: ${{ defaults.app_host }}
-    cloud.sealos.io/deploy-on-sealos: ${{ defaults.app_name }}
   annotations:
     kubernetes.io/ingress.class: nginx
     nginx.ingress.kubernetes.io/proxy-body-size: 32m

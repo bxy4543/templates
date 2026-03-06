@@ -1,37 +1,42 @@
-apiVersion: template.app.sealos.io/v1beta1
+apiVersion: app.sealos.io/v1
 kind: Template
 metadata:
-  name: docker-stacks
+  name: deeplx
 spec:
-  title: 'JupyterDockerStacks'
-  url: 'https://jupyter-docker-stacks.readthedocs.io/en/latest/'
-  github: 'https://github.com/jupyter/docker-stacks'
-  author: 'sealos'
-  description: 'Jupyter Docker Stacks are a set of ready-to-run Docker images containing Jupyter applications and interactive computing tools.'
-  readme: 'https://raw.githubusercontent.com/jupyter/docker-stacks/main/README.md'
-  icon: 'https://avatars.githubusercontent.com/u/7388996?s=96&v=4'
-  template_type: inline
+  title: 'DeeplX'
+  url: 'https://github.com/OwO-Network/DeepLX'
+  gitRepo: 'https://github.com/OwO-Network/DeepLX'
+  author: 'Sealos'
+  description: 'DeepL Free API (No TOKEN required)'
+  readme: 'https://raw.githubusercontent.com/OwO-Network/DeepLX/main/README.md'
+  icon: 'https://avatars.githubusercontent.com/u/83310993?s=200&v=4'
+  templateType: inline
+  categories:
+    - tool
   defaults:
-    app_host:
-      # number or string.
-      type: string
-      value: ${{ random(8) }}
     app_name:
       type: string
-      value: appsmith-${{ random(8) }}
-
+      value: deeplx-${{ random(8) }}
+    app_host:
+      type: string
+      value: ${{ random(8) }}
+  inputs:
+    AUTHKEY:
+      description: 'DeepL Official AuthKey. If you have set it up, after the 429 response, the official AuthKey will be used for the request. If multiple authKeys are used simultaneously, they need to be separated by commas.'
+      type: string
+      default: ''
+      required: false
 ---
 apiVersion: apps/v1
 kind: Deployment
 metadata:
   name: ${{ defaults.app_name }}
   annotations:
-    originImageName: jupyter/scipy-notebook:2023-06-01
+    originImageName: ghcr.io/owo-network/deeplx:v0.9.5
     deploy.cloud.sealos.io/minReplicas: '1'
     deploy.cloud.sealos.io/maxReplicas: '1'
   labels:
     cloud.sealos.io/app-deploy-manager: ${{ defaults.app_name }}
-    cloud.sealos.io/deploy-on-sealos: ${{ defaults.app_name }}
     app: ${{ defaults.app_name }}
 spec:
   replicas: 1
@@ -49,24 +54,27 @@ spec:
       labels:
         app: ${{ defaults.app_name }}
     spec:
+      automountServiceAccountToken: false
       containers:
         - name: ${{ defaults.app_name }}
-          image: jupyter/scipy-notebook:2023-06-01
-          env: []
+          image: ghcr.io/owo-network/deeplx:v0.9.5
+          env:
+            - name: AUTHKEY
+              value: ${{ inputs.AUTHKEY }}
           resources:
             requests:
-              cpu: 100m
-              memory: 102Mi
+              cpu: 10m
+              memory: 6Mi
             limits:
-              cpu: 1000m
-              memory: 1024Mi
-          command: []
-          args: []
+              cpu: 100m
+              memory: 64Mi
           ports:
-            - containerPort: 8888
-          imagePullPolicy: Always
+            - containerPort: 1188
+          imagePullPolicy: IfNotPresent
           volumeMounts: []
       volumes: []
+
+
 ---
 apiVersion: v1
 kind: Service
@@ -74,12 +82,13 @@ metadata:
   name: ${{ defaults.app_name }}
   labels:
     cloud.sealos.io/app-deploy-manager: ${{ defaults.app_name }}
-    cloud.sealos.io/deploy-on-sealos: ${{ defaults.app_name }}
 spec:
   ports:
-    - port: 8888
+    - port: 1188
   selector:
     app: ${{ defaults.app_name }}
+
+
 ---
 apiVersion: networking.k8s.io/v1
 kind: Ingress
@@ -88,7 +97,6 @@ metadata:
   labels:
     cloud.sealos.io/app-deploy-manager: ${{ defaults.app_name }}
     cloud.sealos.io/app-deploy-manager-domain: ${{ defaults.app_host }}
-    cloud.sealos.io/deploy-on-sealos: ${{ defaults.app_name }}
   annotations:
     kubernetes.io/ingress.class: nginx
     nginx.ingress.kubernetes.io/proxy-body-size: 32m
@@ -118,7 +126,7 @@ spec:
               service:
                 name: ${{ defaults.app_name }}
                 port:
-                  number: 8888
+                  number: 1188
   tls:
     - hosts:
         - ${{ defaults.app_host }}.${{ SEALOS_CLOUD_DOMAIN }}

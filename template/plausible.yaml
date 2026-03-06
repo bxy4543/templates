@@ -1,16 +1,18 @@
-apiVersion: template.app.sealos.io/v1beta1
+apiVersion: app.sealos.io/v1
 kind: Template
 metadata:
   name: plausible
 spec:
   title: 'plausible'
   url: 'https://github.com/plausible/analytics'
-  github: 'https://github.com/plausible/analytics'
-  author: 'sealos'
+  gitRepo: 'https://github.com/plausible/analytics'
+  author: 'Sealos'
   description: 'Simple, open-source, lightweight (< 1 KB) and privacy-friendly web analytics alternative to Google Analytics.'
   readme: 'https://raw.githubusercontent.com/plausible/analytics/master/README.md'
   icon: 'https://raw.githubusercontent.com/plausible/docs/master/static/img/plausible-analytics-icon-top.png'
-  template_type: inline
+  templateType: inline
+  categories:
+    - tool
   defaults:
     app_host:
       # number or string..
@@ -42,6 +44,18 @@ spec:
       required: true
 
 ---
+
+apiVersion: v1
+kind: ServiceAccount
+metadata:
+  labels:
+    sealos-db-provider-cr: ${{ defaults.app_name }}-db
+    app.kubernetes.io/instance: ${{ defaults.app_name }}-db
+    app.kubernetes.io/managed-by: kbcli
+  name: ${{ defaults.app_name }}-db
+
+---
+
 apiVersion: apps.kubeblocks.io/v1alpha1
 kind: Cluster
 metadata:
@@ -51,7 +65,6 @@ metadata:
     clusterdefinition.kubeblocks.io/name: postgresql
     clusterversion.kubeblocks.io/name: postgresql-14.8.0
     sealos-db-provider-cr: ${{ defaults.app_name }}-db
-    cloud.sealos.io/deploy-on-sealos: ${{ defaults.app_name }}
   annotations: {}
   name: ${{ defaults.app_name }}-db
 spec:
@@ -70,10 +83,10 @@ spec:
       resources:
         limits:
           cpu: 500m
-          memory: 500Mi
+          memory: 512Mi
         requests:
           cpu: 50m
-          memory: 50Mi
+          memory: 51Mi
       serviceAccountName: ${{ defaults.app_name }}-db
       switchPolicy:
         type: Noop
@@ -84,23 +97,13 @@ spec:
               - ReadWriteOnce
             resources:
               requests:
-                storage: 10Gi
-            storageClassName: openebs-backup
+                storage: 1Gi
+
   terminationPolicy: Delete
   tolerations: []
 
 ---
-apiVersion: v1
-kind: ServiceAccount
-metadata:
-  labels:
-    sealos-db-provider-cr: ${{ defaults.app_name }}-db
-    app.kubernetes.io/instance: ${{ defaults.app_name }}-db
-    app.kubernetes.io/managed-by: kbcli
-    cloud.sealos.io/deploy-on-sealos: ${{ defaults.app_name }}
-  name: ${{ defaults.app_name }}-db
 
----
 apiVersion: rbac.authorization.k8s.io/v1
 kind: Role
 metadata:
@@ -108,50 +111,14 @@ metadata:
     sealos-db-provider-cr: ${{ defaults.app_name }}-db
     app.kubernetes.io/instance: ${{ defaults.app_name }}-db
     app.kubernetes.io/managed-by: kbcli
-    cloud.sealos.io/deploy-on-sealos: ${{ defaults.app_name }}
   name: ${{ defaults.app_name }}-db
 rules:
   - apiGroups:
-      - ''
+      - '*'
     resources:
-      - events
+      - '*'
     verbs:
-      - create
-  - apiGroups:
-      - ''
-    resources:
-      - configmaps
-    verbs:
-      - create
-      - get
-      - list
-      - patch
-      - update
-      - watch
-      - delete
-  - apiGroups:
-      - ''
-    resources:
-      - endpoints
-    verbs:
-      - create
-      - get
-      - list
-      - patch
-      - update
-      - watch
-      - delete
-  - apiGroups:
-      - ''
-    resources:
-      - pods
-    verbs:
-      - get
-      - list
-      - patch
-      - update
-      - watch
-
+      - '*'
 ---
 apiVersion: rbac.authorization.k8s.io/v1
 kind: RoleBinding
@@ -168,7 +135,6 @@ roleRef:
 subjects:
   - kind: ServiceAccount
     name: ${{ defaults.app_name }}-db
-    namespace: ${{ SEALOS_NAMESPACE }}
 ---
 apiVersion: v1
 kind: ConfigMap
@@ -177,7 +143,6 @@ metadata:
   labels:
     cloud.sealos.io/app-deploy-manager: ${{ defaults.app_name }}-events-db
     app: ${{ defaults.app_name }}-events-db
-    cloud.sealos.io/deploy-on-sealos: ${{ defaults.app_name }}
 data:
   vn-etcvn-clickhouse-servervn-configvn-dvn-loggingvn-xml: |-
     <clickhouse>
@@ -221,7 +186,6 @@ metadata:
   labels:
     cloud.sealos.io/app-deploy-manager: ${{ defaults.app_name }}-events-db
     app: ${{ defaults.app_name }}-events-db
-    cloud.sealos.io/deploy-on-sealos: ${{ defaults.app_name }}
 spec:
   replicas: 1
   revisionHistoryLimit: 1
@@ -234,6 +198,7 @@ spec:
       labels:
         app: ${{ defaults.app_name }}-events-db
     spec:
+      automountServiceAccountToken: false
       containers:
         - name: ${{ defaults.app_name }}-events-db
           image: clickhouse/clickhouse-server:23.3.7.5-alpine
@@ -257,7 +222,7 @@ spec:
           args: []
           ports:
             - containerPort: 8123
-          imagePullPolicy: Always
+          imagePullPolicy: IfNotPresent
           volumeMounts:
             - name: vn-etcvn-clickhouse-servervn-configvn-dvn-loggingvn-xml
               mountPath: /etc/clickhouse-server/config.d/logging.xml
@@ -284,14 +249,14 @@ spec:
     - metadata:
         annotations:
           path: /var/lib/clickhouse
-          value: '5'
+          value: '1'
         name: vn-varvn-libvn-clickhouse
       spec:
         accessModes:
           - ReadWriteOnce
         resources:
           requests:
-            storage: 5Gi
+            storage: 1Gi
 ---
 apiVersion: v1
 kind: Service
@@ -299,7 +264,6 @@ metadata:
   name: ${{ defaults.app_name }}-events-db
   labels:
     cloud.sealos.io/app-deploy-manager: ${{ defaults.app_name }}-events-db
-    cloud.sealos.io/deploy-on-sealos: ${{ defaults.app_name }}
 spec:
   ports:
     - port: 8123
@@ -317,7 +281,6 @@ metadata:
   labels:
     cloud.sealos.io/app-deploy-manager: ${{ defaults.app_name }}
     app: ${{ defaults.app_name }}
-    cloud.sealos.io/deploy-on-sealos: ${{ defaults.app_name }}
 spec:
   replicas: 1
   revisionHistoryLimit: 1
@@ -334,6 +297,7 @@ spec:
       labels:
         app: ${{ defaults.app_name }}
     spec:
+      automountServiceAccountToken: false
       containers:
         - name: ${{ defaults.app_name }}
           image: plausible/analytics:v2.0
@@ -367,7 +331,7 @@ spec:
             - sleep 10 && /entrypoint.sh db createdb && /entrypoint.sh db migrate && /entrypoint.sh run
           ports:
             - containerPort: 8000
-          imagePullPolicy: Always
+          imagePullPolicy: IfNotPresent
           volumeMounts: []
       volumes: []
 ---
@@ -377,7 +341,6 @@ metadata:
   name: ${{ defaults.app_name }}
   labels:
     cloud.sealos.io/app-deploy-manager: ${{ defaults.app_name }}
-    cloud.sealos.io/deploy-on-sealos: ${{ defaults.app_name }}
 spec:
   ports:
     - port: 8000
@@ -391,7 +354,6 @@ metadata:
   labels:
     cloud.sealos.io/app-deploy-manager: ${{ defaults.app_name }}
     cloud.sealos.io/app-deploy-manager-domain: ${{ defaults.app_host }}
-    cloud.sealos.io/deploy-on-sealos: ${{ defaults.app_name }}
   annotations:
     kubernetes.io/ingress.class: nginx
     nginx.ingress.kubernetes.io/proxy-body-size: 32m

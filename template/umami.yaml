@@ -1,30 +1,48 @@
-apiVersion: template.app.sealos.io/v1beta1
+apiVersion: app.sealos.io/v1
 kind: Template
 metadata:
   name: umami
 spec:
-  title: 'Umami'
-  url: 'https://umami.is/'
-  github: 'https://github.com/umami-software/umami'
-  author: 'sealos'
-  description: 'Umami is an open source, privacy-focused alternative to Google Analytics.'
-  readme: 'https://raw.githubusercontent.com/umami-software/umami/master/README.md'
-  icon: 'https://avatars.githubusercontent.com/u/105618662?s=96&v=4'
-  template_type: inline
+  title: "Umami"
+  url: "https://umami.is/"
+  gitRepo: "https://github.com/umami-software/umami"
+  author: "Sealos"
+  description: "Umami is an open source, privacy-focused alternative to Google Analytics."
+  readme: "https://raw.githubusercontent.com/umami-software/umami/master/README.md"
+  icon: "https://raw.githubusercontent.com/umami-software/umami/master/src/assets/logo.svg"
+  templateType: inline
+  categories:
+    - monitor
+    - tool
   defaults:
     app_host:
       # number or string..
       type: string
-      value: ${{ random(8) }}
+      value: umami-${{ random(8) }}
     app_name:
       type: string
       value: umami-${{ random(8) }}
   inputs:
     APP_SECRET:
-      description: 'replace me with a random string'
+      description: "replace me with a random string"
       type: string
-      default: 'admin'
+      default: "admin"
       required: true
+    TRACKER_SCRIPT_NAME:
+      description: "Allows you to assign a custom name to the tracker script different from the default script.js. This is to help you avoid some ad-blockers."
+      type: string
+      default: ""
+      required: false
+
+---
+apiVersion: v1
+kind: ServiceAccount
+metadata:
+  labels:
+    sealos-db-provider-cr: ${{ defaults.app_name }}-pg
+    app.kubernetes.io/instance: ${{ defaults.app_name }}-pg
+    app.kubernetes.io/managed-by: kbcli
+  name: ${{ defaults.app_name }}-pg
 
 ---
 apiVersion: apps/v1
@@ -32,13 +50,12 @@ kind: Deployment
 metadata:
   name: ${{ defaults.app_name }}
   annotations:
-    originImageName: ghcr.io/umami-software/umami:postgresql-latest
-    deploy.cloud.sealos.io/minReplicas: '1'
-    deploy.cloud.sealos.io/maxReplicas: '1'
+    originImageName: ghcr.io/umami-software/umami:3.0.2
+    deploy.cloud.sealos.io/minReplicas: "1"
+    deploy.cloud.sealos.io/maxReplicas: "1"
   labels:
     cloud.sealos.io/app-deploy-manager: ${{ defaults.app_name }}
     app: ${{ defaults.app_name }}
-    cloud.sealos.io/deploy-on-sealos: ${{ defaults.app_name }}
 spec:
   replicas: 1
   revisionHistoryLimit: 1
@@ -55,9 +72,10 @@ spec:
       labels:
         app: ${{ defaults.app_name }}
     spec:
+      automountServiceAccountToken: false
       containers:
         - name: ${{ defaults.app_name }}
-          image: ghcr.io/umami-software/umami:postgresql-latest
+          image: ghcr.io/umami-software/umami:3.0.2
           env:
             - name: PG_PASSWORD
               valueFrom:
@@ -70,6 +88,8 @@ spec:
               value: postgresql
             - name: APP_SECRET
               value: ${{ inputs.APP_SECRET }}
+            - name: TRACKER_SCRIPT_NAME
+              value: ${{ inputs.TRACKER_SCRIPT_NAME }}
           resources:
             requests:
               cpu: 100m
@@ -81,7 +101,7 @@ spec:
           args: []
           ports:
             - containerPort: 3000
-          imagePullPolicy: Always
+          imagePullPolicy: IfNotPresent
           volumeMounts: []
       volumes: []
 ---
@@ -91,7 +111,6 @@ metadata:
   name: ${{ defaults.app_name }}
   labels:
     cloud.sealos.io/app-deploy-manager: ${{ defaults.app_name }}
-    cloud.sealos.io/deploy-on-sealos: ${{ defaults.app_name }}
 spec:
   ports:
     - port: 3000
@@ -105,20 +124,18 @@ metadata:
   labels:
     cloud.sealos.io/app-deploy-manager: ${{ defaults.app_name }}
     cloud.sealos.io/app-deploy-manager-domain: ${{ defaults.app_host }}
-    cloud.sealos.io/deploy-on-sealos: ${{ defaults.app_name }}
   annotations:
     kubernetes.io/ingress.class: nginx
     nginx.ingress.kubernetes.io/proxy-body-size: 32m
     nginx.ingress.kubernetes.io/server-snippet: |
       client_header_buffer_size 64k;
       large_client_header_buffers 4 128k;
-    nginx.ingress.kubernetes.io/ssl-redirect: 'false'
+    nginx.ingress.kubernetes.io/ssl-redirect: "true"
     nginx.ingress.kubernetes.io/backend-protocol: HTTP
-    nginx.ingress.kubernetes.io/rewrite-target: /$2
     nginx.ingress.kubernetes.io/client-body-buffer-size: 64k
     nginx.ingress.kubernetes.io/proxy-buffer-size: 64k
-    nginx.ingress.kubernetes.io/proxy-send-timeout: '300'
-    nginx.ingress.kubernetes.io/proxy-read-timeout: '300'
+    nginx.ingress.kubernetes.io/proxy-send-timeout: "300"
+    nginx.ingress.kubernetes.io/proxy-read-timeout: "300"
     nginx.ingress.kubernetes.io/configuration-snippet: |
       if ($request_uri ~* \.(js|css|gif|jpe?g|png)) {
         expires 30d;
@@ -130,7 +147,7 @@ spec:
       http:
         paths:
           - pathType: Prefix
-            path: /()(.*)
+            path: /
             backend:
               service:
                 name: ${{ defaults.app_name }}
@@ -150,7 +167,6 @@ metadata:
     clusterdefinition.kubeblocks.io/name: postgresql
     clusterversion.kubeblocks.io/name: postgresql-14.8.0
     sealos-db-provider-cr: ${{ defaults.app_name }}-pg
-    cloud.sealos.io/deploy-on-sealos: ${{ defaults.app_name }}
   annotations: {}
   name: ${{ defaults.app_name }}-pg
 spec:
@@ -168,11 +184,11 @@ spec:
       replicas: 1
       resources:
         limits:
-          cpu: 1000m
-          memory: 1024Mi
+          cpu: 500m
+          memory: 512Mi
         requests:
-          cpu: 100m
-          memory: 102Mi
+          cpu: 50m
+          memory: 51Mi
       serviceAccountName: ${{ defaults.app_name }}-pg
       switchPolicy:
         type: Noop
@@ -183,21 +199,10 @@ spec:
               - ReadWriteOnce
             resources:
               requests:
-                storage: 5Gi
-            storageClassName: openebs-backup
+                storage: 1Gi
+
   terminationPolicy: Delete
   tolerations: []
-
----
-apiVersion: v1
-kind: ServiceAccount
-metadata:
-  labels:
-    sealos-db-provider-cr: ${{ defaults.app_name }}-pg
-    app.kubernetes.io/instance: ${{ defaults.app_name }}-pg
-    app.kubernetes.io/managed-by: kbcli
-    cloud.sealos.io/deploy-on-sealos: ${{ defaults.app_name }}
-  name: ${{ defaults.app_name }}-pg
 
 ---
 apiVersion: rbac.authorization.k8s.io/v1
@@ -207,49 +212,14 @@ metadata:
     sealos-db-provider-cr: ${{ defaults.app_name }}-pg
     app.kubernetes.io/instance: ${{ defaults.app_name }}-pg
     app.kubernetes.io/managed-by: kbcli
-    cloud.sealos.io/deploy-on-sealos: ${{ defaults.app_name }}
   name: ${{ defaults.app_name }}-pg
 rules:
   - apiGroups:
-      - ''
+      - "*"
     resources:
-      - events
+      - "*"
     verbs:
-      - create
-  - apiGroups:
-      - ''
-    resources:
-      - configmaps
-    verbs:
-      - create
-      - get
-      - list
-      - patch
-      - update
-      - watch
-      - delete
-  - apiGroups:
-      - ''
-    resources:
-      - endpoints
-    verbs:
-      - create
-      - get
-      - list
-      - patch
-      - update
-      - watch
-      - delete
-  - apiGroups:
-      - ''
-    resources:
-      - pods
-    verbs:
-      - get
-      - list
-      - patch
-      - update
-      - watch
+      - "*"
 
 ---
 apiVersion: rbac.authorization.k8s.io/v1
@@ -259,7 +229,6 @@ metadata:
     sealos-db-provider-cr: ${{ defaults.app_name }}-pg
     app.kubernetes.io/instance: ${{ defaults.app_name }}-pg
     app.kubernetes.io/managed-by: kbcli
-    cloud.sealos.io/deploy-on-sealos: ${{ defaults.app_name }}
   name: ${{ defaults.app_name }}-pg
 roleRef:
   apiGroup: rbac.authorization.k8s.io
@@ -268,4 +237,63 @@ roleRef:
 subjects:
   - kind: ServiceAccount
     name: ${{ defaults.app_name }}-pg
-    namespace: ${{ SEALOS_NAMESPACE }}
+
+---
+apiVersion: batch/v1
+kind: Job
+metadata:
+  name: ${{ defaults.app_name }}-pg-init
+spec:
+  completions: 1
+  template:
+    spec:
+      containers:
+        - name: pgsql-init
+          image: postgres:14-alpine
+          imagePullPolicy: IfNotPresent
+          env:
+            - name: PG_PASSWORD
+              valueFrom:
+                secretKeyRef:
+                  name: ${{ defaults.app_name }}-pg-conn-credential
+                  key: password
+            - name: PG_HOST
+              valueFrom:
+                secretKeyRef:
+                  name: ${{ defaults.app_name }}-pg-conn-credential
+                  key: host
+            - name: PG_PORT
+              valueFrom:
+                secretKeyRef:
+                  name: ${{ defaults.app_name }}-pg-conn-credential
+                  key: port
+            - name: PG_USERNAME
+              valueFrom:
+                secretKeyRef:
+                  name: ${{ defaults.app_name }}-pg-conn-credential
+                  key: username
+            - name: DATABASE_URL
+              value: postgresql://$(PG_USERNAME):$(PG_PASSWORD)@$(PG_HOST):$(PG_PORT)/postgres
+          command:
+            - /bin/sh
+            - -c
+            - |
+              until psql ${DATABASE_URL} -c 'CREATE DATABASE umami;' &>/dev/null; do sleep 1; done
+      restartPolicy: Never
+  backoffLimit: 0
+  ttlSecondsAfterFinished: 300
+
+---
+apiVersion: app.sealos.io/v1
+kind: App
+metadata:
+  name: ${{ defaults.app_name }}
+  labels:
+    cloud.sealos.io/app-deploy-manager: ${{ defaults.app_name }}
+spec:
+  data:
+    url: https://${{ defaults.app_host }}.${{ SEALOS_CLOUD_DOMAIN }}
+  displayType: normal
+  icon: "https://raw.githubusercontent.com/umami-software/umami/master/src/assets/logo.svg"
+  name: ${{ defaults.app_name }}
+  type: link
