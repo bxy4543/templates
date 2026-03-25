@@ -90,4 +90,4 @@ jobs:
             -i ${{ secrets.OSS_ACCESS_KEY_ID }} \
             -k ${{ secrets.OSS_ACCESS_KEY_SECRET }} \
             $template_name.tar \
-            oss://${{ secrets.OSS_BUCKET }}/cloud/template/arm64/$template_name.tar
+            oss://${{ secrets.OSS_BUCKET }}/offline/template/arm64/$template_name.tar

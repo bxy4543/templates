@@ -94,9 +94,9 @@ jobs:
           else
             template_name=$(basename ${{ matrix.target }} .yaml | tr '[:upper:]' '[:lower:]')
           fi
-          upload_dir="cloud/template"
+          upload_dir="offline/template"
           if [[ "${{ matrix.arch }}" == "arm64" ]]; then
-            upload_dir="cloud/template/arm64"
+            upload_dir="offline/template/arm64"
           fi
           ossutil64 cp -f -e ${{ secrets.OSS_ENDPOINT }} \
             -i ${{ secrets.OSS_ACCESS_KEY_ID }} \
