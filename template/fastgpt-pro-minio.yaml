@@ -45,13 +45,13 @@ spec:
       type: string
       default: '123456'
       required: true
-    s3_access_key:
-      description: 'S3 access key'
+    storage_access_key_id:
+      description: 'storage access key id'
       type: string
       default: 'minioadmin'
       required: true
-    s3_secret_key:
-      description: 'S3 secret key'
+    storage_secret_access_key:
+      description: 'storage secret access key'
       type: string
       default: 'minioadmin'
       required: true
@@ -60,33 +60,23 @@ spec:
       type: number
       default: '1'
       required: true
-    s3_port:
-      description: 'S3 port'
+    storage_s3_endpoint:
+      description: 'storage s3 endpoint'
       type: string
-      default: '9000'
+      default: 'http://${{ defaults.app_name }}-minio-console.${{ SEALOS_NAMESPACE }}.svc.cluster.local:9000'
       required: true
-    s3_use_ssl:
-      description: 'use ssl for s3 endpoint'
+    storage_external_endpoint:
+      description: 'storage external endpoint'
       type: string
-      default: 'false'
+      default: 'https://${{ defaults.app_host }}-minio.${{ SEALOS_CLOUD_DOMAIN }}'
       required: true
-    s3_endpoint:
-      description: 'S3 endpoint'
-      type: string
-      default: '${{ defaults.app_name }}-minio.${{ SEALOS_NAMESPACE }}.svc.cluster.local'
-      required: true
-    s3_external_base_url:
-      description: 's3 external base url'
-      type: string
-      default: 'https://${{ defaults.app_host }}api.${{ SEALOS_CLOUD_DOMAIN }}'
-      required: true
-    s3_public_bucket:
-      description: 's3 public bucket name'
+    storage_public_bucket:
+      description: 'storage public bucket name'
       type: string
       default: 'fastgpt-public'
       required: true
-    s3_private_bucket:
-      description: 's3 private bucket name'
+    storage_private_bucket:
+      description: 'storage private bucket name'
       type: string
       default: 'fastgpt-private'
       required: true
@@ -127,7 +117,7 @@ kind: Deployment
 metadata:
   name: ${{ defaults.app_name }}
   annotations:
-    originImageName: registry.cn-hangzhou.aliyuncs.com/fastgpt/fastgpt:v4.14.4
+    originImageName: registry.cn-hangzhou.aliyuncs.com/fastgpt/fastgpt:v4.14.8
     deploy.cloud.sealos.io/minReplicas: '1'
     deploy.cloud.sealos.io/maxReplicas: '1'
   labels:
@@ -147,7 +137,7 @@ spec:
       automountServiceAccountToken: false
       containers:
         - name: ${{ defaults.app_name }}
-          image: registry.cn-hangzhou.aliyuncs.com/fastgpt/fastgpt:v4.14.4
+          image: registry.cn-hangzhou.aliyuncs.com/fastgpt/fastgpt:v4.14.8
           env:
             - name: MONGO_PASSWORD
               valueFrom:
@@ -213,22 +203,23 @@ spec:
               value: '500'
             - name: WORKFLOW_MAX_LOOP_TIMES
               value: '50'
-            - name: S3_EXTERNAL_BASE_URL
-              value: ${{ inputs.s3_external_base_url }}
-            - name: S3_ENDPOINT
-              value: ${{ inputs.s3_endpoint }}
-            - name: S3_PORT
-              value: ${{ inputs.s3_port }}
-            - name: S3_ACCESS_KEY
-              value: ${{ inputs.s3_access_key }}
-            - name: S3_SECRET_KEY
-              value: ${{ inputs.s3_secret_key }}
-            - name: S3_PUBLIC_BUCKET
-              value: ${{ inputs.s3_public_bucket }}
-            - name: S3_PRIVATE_BUCKET
-              value: ${{ inputs.s3_private_bucket }}
-            - name: S3_USE_SSL
-              value: ${{ inputs.s3_use_ssl }}
+
+            - name: STORAGE_VENDOR
+              value: minio
+            - name: STORAGE_REGION
+              value: us-east-1
+            - name: STORAGE_ACCESS_KEY_ID
+              value: ${{ inputs.storage_access_key_id }}
+            - name: STORAGE_SECRET_ACCESS_KEY
+              value: ${{ inputs.storage_secret_access_key }}
+            - name: STORAGE_PUBLIC_BUCKET
+              value: ${{ inputs.storage_public_bucket }}
+            - name: STORAGE_PRIVATE_BUCKET
+              value: ${{ inputs.storage_private_bucket }}
+            - name: STORAGE_EXTERNAL_ENDPOINT
+              value: ${{ inputs.storage_external_endpoint }}
+            - name: STORAGE_S3_ENDPOINT
+              value: ${{ inputs.storage_s3_endpoint }}
           resources:
             requests:
               cpu: 50m
@@ -329,7 +320,7 @@ kind: Deployment
 metadata:
   name: ${{ defaults.app_name }}-pro
   annotations:
-    originImageName: registry.cn-hangzhou.aliyuncs.com/fastgpt/fastgpt-pro:v4.14.4
+    originImageName: registry.cn-hangzhou.aliyuncs.com/fastgpt/fastgpt-pro:v4.14.8
     deploy.cloud.sealos.io/minReplicas: '1'
     deploy.cloud.sealos.io/maxReplicas: '1'
   labels:
@@ -354,7 +345,7 @@ spec:
       automountServiceAccountToken: false
       containers:
         - name: ${{ defaults.app_name }}-pro
-          image: registry.cn-hangzhou.aliyuncs.com/fastgpt/fastgpt-pro:v4.14.4
+          image: registry.cn-hangzhou.aliyuncs.com/fastgpt/fastgpt-pro:v4.14.8
           env:
             - name: MONGO_PASSWORD
               valueFrom:
@@ -390,7 +381,7 @@ spec:
               value: ${{ defaults.aiproxy_key }}
             - name: SANDBOX_URL
               value: http://${{ defaults.app_name }}-sandbox.${{ SEALOS_NAMESPACE }}.svc.cluster.local:3000
-            
+
             - name: DB_MAX_LINK
               value: '100'
             - name: MONGODB_URI
@@ -403,6 +394,23 @@ spec:
               value: >-
                 redis://default:$(REDIS_PASSWORD)@${{ defaults.app_name }}-redis-redis.${{ SEALOS_NAMESPACE }}.svc:6379
             
+            - name: STORAGE_VENDOR
+              value: minio
+            - name: STORAGE_REGION
+              value: us-east-1
+            - name: STORAGE_ACCESS_KEY_ID
+              value: ${{ inputs.storage_access_key_id }}
+            - name: STORAGE_SECRET_ACCESS_KEY
+              value: ${{ inputs.storage_secret_access_key }}
+            - name: STORAGE_PUBLIC_BUCKET
+              value: ${{ inputs.storage_public_bucket }}
+            - name: STORAGE_PRIVATE_BUCKET
+              value: ${{ inputs.storage_private_bucket }}
+            - name: STORAGE_EXTERNAL_ENDPOINT
+              value: ${{ inputs.storage_external_endpoint }}
+            - name: STORAGE_S3_ENDPOINT
+              value: ${{ inputs.storage_s3_endpoint }}
+
             - name: LOG_LEVEL
               value: info
             - name: STORE_LOG_LEVEL
@@ -484,7 +492,7 @@ kind: Deployment
 metadata:
   name: ${{ defaults.app_name }}-plugin
   annotations:
-    originImageName: registry.cn-hangzhou.aliyuncs.com/fastgpt/fastgpt-plugin:v0.3.4
+    originImageName: registry.cn-hangzhou.aliyuncs.com/fastgpt/fastgpt-plugin:v0.5.4
     deploy.cloud.sealos.io/minReplicas: '1'
     deploy.cloud.sealos.io/maxReplicas: '1'
     deploy.cloud.sealos.io/resize: 0Gi
@@ -510,24 +518,24 @@ spec:
       automountServiceAccountToken: false
       containers:
         - name: ${{ defaults.app_name }}-plugin
-          image: registry.cn-hangzhou.aliyuncs.com/fastgpt/fastgpt-plugin:v0.3.4
+          image: registry.cn-hangzhou.aliyuncs.com/fastgpt/fastgpt-plugin:v0.5.4
           env:
-            - name: S3_EXTERNAL_BASE_URL
-              value: ${{ inputs.s3_external_base_url }}
-            - name: S3_ENDPOINT
-              value: ${{ inputs.s3_endpoint }}
-            - name: S3_PORT
-              value: ${{ inputs.s3_port }}
-            - name: S3_ACCESS_KEY
-              value: ${{ inputs.s3_access_key }}
-            - name: S3_SECRET_KEY
-              value: ${{ inputs.s3_secret_key }}
-            - name: S3_PUBLIC_BUCKET
-              value: ${{ inputs.s3_public_bucket }}
-            - name: S3_PRIVATE_BUCKET
-              value: ${{ inputs.s3_private_bucket }}
-            - name: S3_USE_SSL
-              value: ${{ inputs.s3_use_ssl }}
+            - name: STORAGE_VENDOR
+              value: minio
+            - name: STORAGE_REGION
+              value: us-east-1
+            - name: STORAGE_ACCESS_KEY_ID
+              value: ${{ inputs.storage_access_key_id }}
+            - name: STORAGE_SECRET_ACCESS_KEY
+              value: ${{ inputs.storage_secret_access_key }}
+            - name: STORAGE_PUBLIC_BUCKET
+              value: ${{ inputs.storage_public_bucket }}
+            - name: STORAGE_PRIVATE_BUCKET
+              value: ${{ inputs.storage_private_bucket }}
+            - name: STORAGE_EXTERNAL_ENDPOINT
+              value: ${{ inputs.storage_external_endpoint }}
+            - name: STORAGE_S3_ENDPOINT
+              value: ${{ inputs.storage_s3_endpoint }}
             - name: AUTH_TOKEN
               value: ${{ defaults.plugin_token }}
             - name: MONGO_PASSWORD
@@ -592,7 +600,7 @@ kind: Deployment
 metadata:
   name: ${{ defaults.app_name }}-aiproxy
   annotations:
-    originImageName: registry.cn-hangzhou.aliyuncs.com/labring/aiproxy:v0.3.3
+    originImageName: registry.cn-hangzhou.aliyuncs.com/labring/aiproxy:v0.3.15
     deploy.cloud.sealos.io/minReplicas: '1'
     deploy.cloud.sealos.io/maxReplicas: '1'
     deploy.cloud.sealos.io/resize: 0Gi
@@ -618,7 +626,7 @@ spec:
       automountServiceAccountToken: false
       containers:
         - name: ${{ defaults.app_name }}-aiproxy
-          image: registry.cn-hangzhou.aliyuncs.com/labring/aiproxy:v0.3.3
+          image: registry.cn-hangzhou.aliyuncs.com/labring/aiproxy:v0.3.15
           env:
             - name: PG_PASSWORD
               valueFrom:
@@ -671,7 +679,7 @@ kind: Deployment
 metadata:
   name: ${{ defaults.app_name }}-sandbox
   annotations:
-    originImageName: registry.cn-hangzhou.aliyuncs.com/fastgpt/fastgpt-sandbox:v4.14.4
+    originImageName: registry.cn-hangzhou.aliyuncs.com/fastgpt/fastgpt-sandbox:v4.14.8
     deploy.cloud.sealos.io/minReplicas: '1'
     deploy.cloud.sealos.io/maxReplicas: '1'
     deploy.cloud.sealos.io/resize: 0Gi
@@ -697,7 +705,7 @@ spec:
       automountServiceAccountToken: false
       containers:
         - name: ${{ defaults.app_name }}-sandbox
-          image: registry.cn-hangzhou.aliyuncs.com/fastgpt/fastgpt-sandbox:v4.14.4
+          image: registry.cn-hangzhou.aliyuncs.com/fastgpt/fastgpt-sandbox:v4.14.8
           env: []
           resources:
             requests:
@@ -1119,9 +1127,9 @@ spec:
             - "--console-address=:9001"
           env:
             - name: MINIO_ROOT_USER
-              value: ${{ inputs.s3_access_key }}
+              value: ${{ inputs.storage_access_key_id }}
             - name: MINIO_ROOT_PASSWORD
-              value: ${{ inputs.s3_secret_key }}
+              value: ${{ inputs.storage_secret_access_key }}
           ports:
             - name: api
               containerPort: 9000
@@ -1191,9 +1199,9 @@ spec:
 apiVersion: v1
 kind: Service
 metadata:
-  name: ${{ defaults.app_name }}-minio-console
+  name: ${{ defaults.app_name }}-minio-api
   labels:
-    cloud.sealos.io/app-deploy-manager: ${{ defaults.app_name }}-minio-console
+    cloud.sealos.io/app-deploy-manager: ${{ defaults.app_name }}-minio-api
 spec:
   selector:
     app: ${{ defaults.app_name }}-minio
@@ -1215,7 +1223,7 @@ metadata:
   name: ${{ defaults.app_name }}-minio-console
   labels:
     cloud.sealos.io/app-deploy-manager: ${{ defaults.app_name }}-minio
-    cloud.sealos.io/app-deploy-manager-domain: ${{ defaults.app_host }}console
+    cloud.sealos.io/app-deploy-manager-domain: ${{ defaults.app_host }}-minio-console
   annotations:
     kubernetes.io/ingress.class: nginx
     nginx.ingress.kubernetes.io/proxy-body-size: 32m
@@ -1234,19 +1242,19 @@ metadata:
       }
 spec:
   rules:
-    - host: ${{ defaults.app_host }}console.${{ SEALOS_CLOUD_DOMAIN }}
+    - host: ${{ defaults.app_host }}-minio-console.${{ SEALOS_CLOUD_DOMAIN }}
       http:
         paths:
           - pathType: Prefix
             path: /()(.*)
             backend:
               service:
-                name: ${{ defaults.app_name }}-minio-console
+                name: ${{ defaults.app_name }}-minio-api
                 port:
                   number: 9001
   tls:
     - hosts:
-        - ${{ defaults.app_host }}console.${{ SEALOS_CLOUD_DOMAIN }}
+        - ${{ defaults.app_host }}-minio-console.${{ SEALOS_CLOUD_DOMAIN }}
       secretName: ${{ SEALOS_CERT_SECRET_NAME }}
 
 ---
@@ -1256,7 +1264,7 @@ metadata:
   name: ${{ defaults.app_name }}-minio-api
   labels:
     cloud.sealos.io/app-deploy-manager: ${{ defaults.app_name }}-minio
-    cloud.sealos.io/app-deploy-manager-domain: ${{ defaults.app_host }}api
+    cloud.sealos.io/app-deploy-manager-domain: ${{ defaults.app_host }}-minio
   annotations:
     kubernetes.io/ingress.class: nginx
     nginx.ingress.kubernetes.io/proxy-body-size: 32m
@@ -1275,17 +1283,17 @@ metadata:
       }
 spec:
   rules:
-    - host: ${{ defaults.app_host }}api.${{ SEALOS_CLOUD_DOMAIN }}
+    - host: ${{ defaults.app_host }}-minio.${{ SEALOS_CLOUD_DOMAIN }}
       http:
         paths:
           - pathType: Prefix
             path: /()(.*)
             backend:
               service:
-                name: ${{ defaults.app_name }}-minio-console
+                name: ${{ defaults.app_name }}-minio-api
                 port:
                   number: 9000
   tls:
     - hosts:
-        - ${{ defaults.app_host }}api.${{ SEALOS_CLOUD_DOMAIN }}
+        - ${{ defaults.app_host }}-minio.${{ SEALOS_CLOUD_DOMAIN }}
       secretName: ${{ SEALOS_CERT_SECRET_NAME }}
